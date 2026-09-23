@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image
 import pytest
-
-from rabbitcam_ml.camera.mjpeg import JPEGFrame
-from rabbitcam_ml.capture import capture_session
-from rabbitcam_ml.dataset import (
+from petcam_ml.camera.mjpeg import JPEGFrame
+from petcam_ml.capture import capture_session
+from petcam_ml.dataset import (
     CorruptImageError,
     ImageRecord,
-    RabbitCamDataset,
+    PetCamDataset,
     discover_capture_sessions,
 )
-from rabbitcam_ml.transforms import build_transform
+from petcam_ml.transforms import build_transform
+from PIL import Image
 
 
 def _jpeg_bytes(tmp_path: Path, name: str = "source.jpg") -> bytes:
@@ -48,8 +47,7 @@ def test_capture_preserves_jpeg_and_writes_session_metadata(tmp_path: Path) -> N
     assert metadata["stream_url"] == "http://camera:81/stream"
     assert metadata["status"] == "complete"
     assert all(
-        (result.session_dir / item["filename"]).read_bytes() == jpeg
-        for item in metadata["frames"]
+        (result.session_dir / item["filename"]).read_bytes() == jpeg for item in metadata["frames"]
     )
 
 
@@ -82,7 +80,7 @@ def test_discovery_reports_missing_and_corrupt_images(tmp_path: Path) -> None:
 def test_dataset_returns_tensor_and_class_index(tmp_path: Path) -> None:
     image_path = tmp_path / "rabbit.jpg"
     Image.new("RGB", (20, 10), "white").save(image_path)
-    dataset = RabbitCamDataset(
+    dataset = PetCamDataset(
         [ImageRecord(image_path, "standing", "standing-visible-1", "visible")],
         transform=build_transform({"input_size": 24}),
     )
@@ -94,7 +92,7 @@ def test_dataset_returns_tensor_and_class_index(tmp_path: Path) -> None:
 def test_dataset_runtime_corruption_has_context(tmp_path: Path) -> None:
     image_path = tmp_path / "bad.jpg"
     image_path.write_bytes(b"bad")
-    dataset = RabbitCamDataset(
+    dataset = PetCamDataset(
         [ImageRecord(image_path, "unknown", "unknown-1")],
         transform=build_transform(),
     )

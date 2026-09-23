@@ -1,4 +1,4 @@
-You are implementing the ML subsystem of an existing project called PetCam / RabbitCam.
+You are implementing the ML subsystem of an existing project called PetCam.
 
 IMPORTANT SCOPE BOUNDARY
 
@@ -8,7 +8,7 @@ Another agent will implement the homeserver HTTP/API service, temporal state tra
 
 Your ownership is a new top-level `ml/` directory containing a clean, testable Python package for:
 
-- collecting labeled training images from RabbitCam
+- collecting labeled training images from PetCam
 - preparing datasets
 - training a posture classifier
 - checkpointing/resuming training
@@ -22,7 +22,7 @@ Inspect the existing repository before making changes.
 GOAL
 ============================================================
 
-Train a lightweight local image classifier that looks at a RabbitCam frame and predicts one of exactly three classes:
+Train a lightweight local image classifier that looks at a PetCam frame and predicts one of exactly three classes:
 
 1. standing
 2. lateral
@@ -59,7 +59,7 @@ The model implementation must be isolated behind a model factory so another back
 
 Default input size: 256x256.
 
-RabbitCam operates both in visible light and using 850 nm infrared illumination.
+PetCam operates both in visible light and using 850 nm infrared illumination.
 
 Default preprocessing should therefore:
 
@@ -95,7 +95,7 @@ ml/
         default.yaml
 
     src/
-        rabbitcam_ml/
+        petcam_ml/
             __init__.py
             __main__.py
             config.py
@@ -155,15 +155,15 @@ Keep dependencies reasonable.
 DATA CAPTURE
 ============================================================
 
-Implement a CLI for collecting labeled data directly from RabbitCam's MJPEG stream.
+Implement a CLI for collecting labeled data directly from PetCam's MJPEG stream.
 
-RabbitCam currently exposes an MJPEG stream in the form:
+PetCam currently exposes an MJPEG stream in the form:
 
     http://<camera-ip>:81/stream
 
 Example desired command:
 
-    rabbitcam-ml capture \
+    petcam-ml capture \
         --stream-url http://192.168.100.22:81/stream \
         --label lateral \
         --lighting ir \
@@ -255,7 +255,7 @@ TRAINING
 
 Implement a robust headless training CLI, for example:
 
-    rabbitcam-ml train --config configs/default.yaml
+    petcam-ml train --config configs/default.yaml
 
 Use transfer learning from the pretrained MobileNetV4 backbone.
 
@@ -347,7 +347,7 @@ If the configured run directory contains a compatible `last.pt`, a normal `train
 
 Example:
 
-    rabbitcam-ml train --config configs/default.yaml
+    petcam-ml train --config configs/default.yaml
 
 should continue an interrupted run without needing a separate `--resume` argument.
 
@@ -403,7 +403,7 @@ The user must be able to take ANY saved checkpoint, give it one image, and immed
 
 Provide something equivalent to:
 
-    rabbitcam-ml predict \
+    petcam-ml predict \
         --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/last.pt \
         --image rabbit.jpg
 
@@ -418,7 +418,7 @@ Human-readable output should resemble:
 
 Also support machine-readable JSON:
 
-    rabbitcam-ml predict ... --json
+    petcam-ml predict ... --json
 
 The JSON should include at least:
 
@@ -432,9 +432,9 @@ The JSON should include at least:
     checkpoint
     inference_time_ms
 
-Support prediction directly from RabbitCam as a convenience:
+Support prediction directly from PetCam as a convenience:
 
-    rabbitcam-ml predict \
+    petcam-ml predict \
         --checkpoint ... \
         --stream-url http://192.168.100.22:81/stream
 
@@ -469,7 +469,7 @@ The separate homeserver agent must be able to import this package without invoki
 
 Provide a stable API similar to:
 
-    from rabbitcam_ml.inference import Predictor
+    from petcam_ml.inference import Predictor
 
     predictor = Predictor(
         checkpoint_path="...",
@@ -509,7 +509,7 @@ EVALUATION
 
 Implement:
 
-    rabbitcam-ml evaluate --checkpoint ... --split test
+    petcam-ml evaluate --checkpoint ... --split test
 
 Report:
 
@@ -531,7 +531,7 @@ CHECKPOINT INSPECTION
 
 Provide something equivalent to:
 
-    rabbitcam-ml inspect-checkpoint path/to/checkpoint.pt
+    petcam-ml inspect-checkpoint path/to/checkpoint.pt
 
 It should show:
 
@@ -555,7 +555,7 @@ Use pytest.
 Tests must run on CPU and must not require:
 
 - a GPU
-- a RabbitCam device
+- a PetCam device
 - internet access
 - downloading pretrained weights
 
@@ -636,7 +636,7 @@ Document the complete normal workflow:
 9. stop training and demonstrate automatic resume
 10. evaluate a checkpoint
 11. classify one local image
-12. classify one live RabbitCam frame
+12. classify one live PetCam frame
 13. import Predictor from another Python process
 
 Provide concrete command examples.
@@ -691,7 +691,7 @@ Before finishing, demonstrate locally (using synthetic/test data where real came
 - TensorBoard logs and metrics.csv are generated
 - Predictor can be imported and called independently of the CLI
 
-Do not claim real RabbitCam classification accuracy without real labeled data.
+Do not claim real PetCam classification accuracy without real labeled data.
 
 When implementation is complete, summarize:
 - files created

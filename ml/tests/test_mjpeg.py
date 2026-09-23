@@ -3,9 +3,7 @@ from __future__ import annotations
 from io import BytesIO
 
 import pytest
-
-from rabbitcam_ml.camera.mjpeg import MJPEGError, MJPEGStream, iter_jpeg_frames
-
+from petcam_ml.camera.mjpeg import MJPEGError, MJPEGStream, iter_jpeg_frames
 
 JPEG_ONE = b"\xff\xd8first-jpeg\xff\xd9"
 JPEG_TWO = b"\xff\xd8second-jpeg\xff\xd9"

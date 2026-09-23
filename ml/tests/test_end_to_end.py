@@ -4,15 +4,14 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
 import pytest
 import torch
+from petcam_ml.__main__ import main
+from petcam_ml.inference import Predictor
+from petcam_ml.models.factory import create_model
+from petcam_ml.train import train
+from PIL import Image
 from torch.utils.data import DataLoader, TensorDataset
-
-from rabbitcam_ml.__main__ import main
-from rabbitcam_ml.inference import Predictor
-from rabbitcam_ml.models.factory import create_model
-from rabbitcam_ml.train import train
 
 
 def _config(run_dir: Path, epochs: int) -> dict[str, object]:
@@ -64,9 +63,7 @@ def _loaders() -> dict[str, DataLoader[tuple[torch.Tensor, torch.Tensor]]]:
     }
 
 
-def test_train_resume_predict_and_cli_json_work_together(
-    tmp_path: Path, capsys: object
-) -> None:
+def test_train_resume_predict_and_cli_json_work_together(tmp_path: Path, capsys: object) -> None:
     run_dir = tmp_path / "portable-tiny-run"
     manifest = tmp_path / "splits.json"
     manifest.write_text(
@@ -132,18 +129,21 @@ def test_train_resume_predict_and_cli_json_work_together(
 
     # Discard training summaries before validating the machine-readable command.
     capsys.readouterr()  # type: ignore[attr-defined]
-    assert main(
-        [
-            "predict",
-            "--checkpoint",
-            str(checkpoint),
-            "--image",
-            str(image_path),
-            "--device",
-            "cpu",
-            "--json",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "predict",
+                "--checkpoint",
+                str(checkpoint),
+                "--image",
+                str(image_path),
+                "--device",
+                "cpu",
+                "--json",
+            ]
+        )
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
     assert payload["label"] in {"standing", "lateral", "unknown"}
     assert payload["raw_label"] in {"standing", "lateral", "unknown"}

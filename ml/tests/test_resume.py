@@ -4,11 +4,8 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch import nn
-
-from rabbitcam_ml.models.checkpoint import IncompatibleCheckpointError, load_checkpoint
-from rabbitcam_ml.train import train
-
+from petcam_ml.models.checkpoint import IncompatibleCheckpointError, load_checkpoint
+from petcam_ml.train import train
 from test_training import TinyClassifier, loaders, training_config
 
 
@@ -79,4 +76,3 @@ def test_auto_resume_rejects_materially_incompatible_preprocessing(tmp_path: Pat
 
     with pytest.raises(IncompatibleCheckpointError, match="preprocessing"):
         train(changed, model=TinyClassifier(), dataloaders=loaders())
-

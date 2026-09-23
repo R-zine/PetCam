@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import pytest
-
-from rabbitcam_ml.labels import (
+from petcam_ml.labels import (
     CLASS_NAMES,
     CLASS_TO_INDEX,
     LIGHTING_MODES,

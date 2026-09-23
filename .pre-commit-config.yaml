@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: petcam-checks
+        name: PetCam tests and lint
+        entry: python tools/precommit_entry.py
+        language: system
+        pass_filenames: false
+        always_run: true
+

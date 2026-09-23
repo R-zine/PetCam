@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import numpy as np
-from PIL import Image
 import pytest
 import torch
-
-from rabbitcam_ml.transforms import PreprocessConfig, build_transform, letterbox_image
+from petcam_ml.transforms import PreprocessConfig, build_transform, letterbox_image
+from PIL import Image
 
 
 def test_inference_transform_has_expected_shape_and_replicated_grayscale() -> None:

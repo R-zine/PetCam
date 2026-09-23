@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import pytest
-
-from rabbitcam_ml.metrics import (
+from petcam_ml.metrics import (
     compute_classification_metrics,
     compute_confusion_matrix,
     metrics_from_logits,

@@ -5,11 +5,10 @@ import json
 from pathlib import Path
 
 import torch
+from petcam_ml.models.checkpoint import load_checkpoint
+from petcam_ml.train import resolve_device, seed_everything, train
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
-
-from rabbitcam_ml.models.checkpoint import load_checkpoint
-from rabbitcam_ml.train import resolve_device, seed_everything, train
 
 
 class TinyDataset(TensorDataset):
@@ -130,4 +129,3 @@ def test_tiny_offline_training_writes_observable_artifacts(tmp_path: Path) -> No
     saved_summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     assert saved_summary["status"] == "completed"
     assert saved_summary["latest_validation"]["confusion_matrix"]
-

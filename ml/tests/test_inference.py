@@ -6,16 +6,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from PIL import Image
-
-from rabbitcam_ml.inference import (
+from petcam_ml.inference import (
     Predictor,
     apply_confidence_threshold,
     read_one_mjpeg_frame,
 )
-from rabbitcam_ml.models.checkpoint import save_checkpoint
-from rabbitcam_ml.models.factory import create_model
-
+from petcam_ml.models.checkpoint import save_checkpoint
+from petcam_ml.models.factory import create_model
+from PIL import Image
 
 CLASS_TO_IDX = {"standing": 0, "lateral": 1, "unknown": 2}
 

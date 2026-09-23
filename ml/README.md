@@ -1,6 +1,6 @@
-# RabbitCam ML
+# PetCam ML
 
-`rabbitcam-ml` is the single-frame posture classifier for PetCam / RabbitCam. It
+`petcam-ml` is the single-frame posture classifier for PetCam. It
 classifies each image as exactly one of `standing`, `lateral`, or `unknown`.
 It does **not** decide whether a posture is dangerous and it does not implement
 timers, alerts, notifications, or an HTTP service. A homeserver can consume the
@@ -20,7 +20,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-rabbitcam-ml --help
+petcam-ml --help
 ```
 
 On Linux or macOS, activate with `source .venv/bin/activate`. The pretrained
@@ -29,26 +29,26 @@ never uses the network or downloads model weights.
 
 ## 2. Capture independent labeled sessions
 
-RabbitCam serves MJPEG at `http://CAMERA_IP:81/stream`. Collect multiple short,
+PetCam serves MJPEG at `http://CAMERA_IP:81/stream`. Collect multiple short,
 independent sessions for each class, changing the rabbit's position and camera
 conditions between sessions. Do not substitute one long capture: adjacent
 frames are strongly correlated and the splitter keeps every session wholly in
 one split.
 
 ```powershell
-rabbitcam-ml capture --stream-url http://192.168.100.22:81/stream `
+petcam-ml capture --stream-url http://192.168.100.22:81/stream `
   --label standing --lighting visible --session standing-visible-001 `
   --interval 1.0 --duration 60
 
-rabbitcam-ml capture --stream-url http://192.168.100.22:81/stream `
+petcam-ml capture --stream-url http://192.168.100.22:81/stream `
   --label standing --lighting ir --session standing-ir-001 `
   --interval 1.0 --duration 60
 
-rabbitcam-ml capture --stream-url http://192.168.100.22:81/stream `
+petcam-ml capture --stream-url http://192.168.100.22:81/stream `
   --label lateral --lighting visible --session lateral-visible-001 `
   --interval 1.0 --duration 60
 
-rabbitcam-ml capture --stream-url http://192.168.100.22:81/stream `
+petcam-ml capture --stream-url http://192.168.100.22:81/stream `
   --label lateral --lighting ir --session lateral-ir-001 `
   --interval 1.0 --duration 60
 ```
@@ -62,7 +62,7 @@ containing an empty enclosure, a partly visible or obscured rabbit, transitions,
 human hands or bodies, severe blur, and otherwise unusable frames:
 
 ```powershell
-rabbitcam-ml capture --stream-url http://192.168.100.22:81/stream `
+petcam-ml capture --stream-url http://192.168.100.22:81/stream `
   --label unknown --lighting mixed --session unknown-obscured-001 `
   --interval 1.0 --duration 45
 ```
@@ -77,8 +77,8 @@ By default captures live below `data/sessions/`. The reusable sample manifest
 and exact session assignments are stored together in `data/splits.json`.
 
 ```powershell
-rabbitcam-ml prepare --config configs/default.yaml
-rabbitcam-ml inspect-split --manifest data/splits.json
+petcam-ml prepare --config configs/default.yaml
+petcam-ml inspect-split --manifest data/splits.json
 ```
 
 The default target is 70% train, 15% validation, and 15% test. Allocation is by
@@ -88,7 +88,7 @@ quietly leaking adjacent frames. Re-running uses the saved manifest. Regenerate
 deliberately with a seed:
 
 ```powershell
-rabbitcam-ml prepare --config configs/default.yaml --regenerate --seed 2026
+petcam-ml prepare --config configs/default.yaml --regenerate --seed 2026
 ```
 
 Missing and corrupt files are reported. Exact duplicate detection can be
@@ -100,7 +100,7 @@ Review `configs/default.yaml`, especially batch size, worker count, epochs, and
 the run directory, then start headless training:
 
 ```powershell
-rabbitcam-ml train --config configs/default.yaml
+petcam-ml train --config configs/default.yaml
 ```
 
 The default run directory is `artifacts/runs/mobilenetv4-v1/`. It contains the
@@ -119,13 +119,13 @@ save. A normal invocation automatically resumes a compatible `last.pt`:
 
 ```powershell
 # Stop the prior command with Ctrl+C, then run the same command.
-rabbitcam-ml train --config configs/default.yaml
+petcam-ml train --config configs/default.yaml
 ```
 
 To intentionally discard automatic resume state and begin that run again:
 
 ```powershell
-rabbitcam-ml train --config configs/default.yaml --fresh
+petcam-ml train --config configs/default.yaml --fresh
 ```
 
 Use a new `paths.run_dir` for a genuinely separate experiment. Incompatible
@@ -147,7 +147,7 @@ matrices. `metrics.csv` and `summary.json` provide non-GUI records.
 Evaluate `best.pt`, `last.pt`, or any periodic checkpoint against a saved split:
 
 ```powershell
-rabbitcam-ml evaluate `
+petcam-ml evaluate `
   --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/best.pt `
   --split test --config configs/default.yaml
 ```
@@ -157,21 +157,21 @@ precision/recall/F1 and counts, lateral recall, and a confusion matrix. Inspect
 the self-describing checkpoint without loading a dataset:
 
 ```powershell
-rabbitcam-ml inspect-checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/last.pt
+petcam-ml inspect-checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/last.pt
 ```
 
 ## 6. Classify one image or one live frame
 
 ```powershell
-rabbitcam-ml predict `
+petcam-ml predict `
   --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/best.pt `
   --image rabbit.jpg
 
-rabbitcam-ml predict `
+petcam-ml predict `
   --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/best.pt `
   --image rabbit.jpg --json
 
-rabbitcam-ml predict `
+petcam-ml predict `
   --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/best.pt `
   --stream-url http://192.168.100.22:81/stream
 ```
@@ -187,7 +187,7 @@ The model is loaded only once and can be reused by a long-running process:
 
 ```python
 from PIL import Image
-from rabbitcam_ml.inference import Predictor
+from petcam_ml.inference import Predictor
 
 predictor = Predictor(
     checkpoint_path="artifacts/runs/mobilenetv4-v1/checkpoints/best.pt",
@@ -211,7 +211,7 @@ has no cross-frame or alert logic.
 ```text
 ml/
   configs/default.yaml
-  src/rabbitcam_ml/       Python package
+  src/petcam_ml/       Python package
   tests/                  offline CPU test suite
   data/sessions/          captured images and metadata (ignored)
   data/splits.json        generated sample/session split manifest (ignored)
@@ -233,5 +233,5 @@ python -m pytest
 Passing tests validate label handling, deterministic session-only splits,
 preprocessing, MJPEG parsing, checkpoint round trips, automatic resume,
 confidence fallback, metrics, a tiny training/checkpoint cycle, CLI JSON output,
-and repeated Predictor use. They do not establish real-world RabbitCam accuracy;
+and repeated Predictor use. They do not establish real-world PetCam accuracy;
 that requires representative labeled visible-light and 850 nm IR sessions.

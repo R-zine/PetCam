@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "PetCam: Refresh C++ IntelliSense",
+            "type": "process",
+            "command": "python",
+            "args": [
+                "${workspaceFolder}/tools/refresh_compile_commands.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

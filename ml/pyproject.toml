@@ -3,13 +3,13 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "rabbitcam-ml"
+name = "petcam-ml"
 version = "0.1.0"
-description = "Session-safe posture classification tools for RabbitCam"
+description = "Session-safe posture classification tools for PetCam"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "RabbitCam contributors" }]
+authors = [{ name = "PetCam contributors" }]
 dependencies = [
   "numpy>=1.24",
   "Pillow>=10.0",
@@ -24,12 +24,19 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-rabbitcam-ml = "rabbitcam_ml.__main__:main"
+petcam-ml = "petcam_ml.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/rabbitcam_ml"]
+packages = ["src/petcam_ml"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
 

@@ -4,10 +4,9 @@ from collections import defaultdict
 from pathlib import Path
 
 import pytest
-
-from rabbitcam_ml.dataset import ImageRecord
-from rabbitcam_ml.labels import CLASS_NAMES
-from rabbitcam_ml.splits import (
+from petcam_ml.dataset import ImageRecord
+from petcam_ml.labels import CLASS_NAMES
+from petcam_ml.splits import (
     InsufficientSessionsError,
     create_split_manifest,
     load_split_manifest,

@@ -1,0 +1,6 @@
+-e ./ml[dev]
+clang-format==23.1.1
+platformio>=6.2,<7
+pre-commit>=4.6,<5
+ruff>=0.16,<0.17
+

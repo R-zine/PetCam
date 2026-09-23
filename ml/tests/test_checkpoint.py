@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pytest
 import torch
-
-from rabbitcam_ml.models.checkpoint import (
+from petcam_ml.models.checkpoint import (
     IncompatibleCheckpointError,
     inspect_checkpoint,
     load_checkpoint,
@@ -13,8 +12,7 @@ from rabbitcam_ml.models.checkpoint import (
     save_checkpoint,
     validate_checkpoint_compatibility,
 )
-from rabbitcam_ml.models.factory import create_model
-
+from petcam_ml.models.factory import create_model
 
 CLASS_TO_IDX = {"standing": 0, "lateral": 1, "unknown": 2}
 PREPROCESSING = {"image_size": 32, "grayscale": True}
