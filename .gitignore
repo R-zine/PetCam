@@ -7,3 +7,13 @@
 # Environment files
 .env
 include/secrets.generated.h
+
+# RabbitCam ML runtime data and generated artifacts
+ml/data/**
+!ml/data/.gitkeep
+ml/artifacts/**
+!ml/artifacts/.gitkeep
+ml/.pytest_cache/
+ml/.venv/
+ml/**/__pycache__/
+*.py[cod]

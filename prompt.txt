@@ -1,0 +1,700 @@
+You are implementing the ML subsystem of an existing project called PetCam / RabbitCam.
+
+IMPORTANT SCOPE BOUNDARY
+
+The repository already contains working ESP32-S3 camera firmware. Do not reorganize, move, or rewrite the existing firmware unless absolutely necessary.
+
+Another agent will implement the homeserver HTTP/API service, temporal state tracking, alerting, and mobile notifications. Do NOT implement an HTTP server or notification system here.
+
+Your ownership is a new top-level `ml/` directory containing a clean, testable Python package for:
+
+- collecting labeled training images from RabbitCam
+- preparing datasets
+- training a posture classifier
+- checkpointing/resuming training
+- evaluating checkpoints
+- running single-image inference
+- exposing a stable Python inference API that the homeserver agent can import later
+
+Inspect the existing repository before making changes.
+
+============================================================
+GOAL
+============================================================
+
+Train a lightweight local image classifier that looks at a RabbitCam frame and predicts one of exactly three classes:
+
+1. standing
+2. lateral
+3. unknown
+
+Definitions:
+
+`standing`
+    The rabbit is upright / not lying laterally. This includes normal upright postures that should be considered "up" by the future monitoring service.
+
+`lateral`
+    The rabbit is substantially lying on its side. Do NOT try to decide whether this is dangerous, stuck, or medically significant. This model only recognizes posture.
+
+`unknown`
+    The rabbit is absent, significantly obscured, only partially visible, the image is unusable, the posture is genuinely ambiguous, a human blocks the view, there is severe motion blur, or the input is otherwise unsuitable for deciding standing vs lateral.
+
+The future homeserver service will combine repeated predictions over time and decide how long the rabbit has been lateral. That temporal/danger logic must remain outside this ML package.
+
+============================================================
+MODEL
+============================================================
+
+Use PyTorch + timm.
+
+Use this pretrained backbone by default:
+
+    mobilenetv4_conv_small.e3600_r256_in1k
+
+Instantiate it with ImageNet pretrained weights and replace the classification head with a three-class head.
+
+Do not train from scratch by default.
+
+The model implementation must be isolated behind a model factory so another backbone could be substituted later without rewriting the pipeline.
+
+Default input size: 256x256.
+
+RabbitCam operates both in visible light and using 850 nm infrared illumination.
+
+Default preprocessing should therefore:
+
+- convert each input image to grayscale
+- replicate grayscale into three channels for the pretrained MobileNet input
+- resize while preserving aspect ratio
+- letterbox/pad rather than blindly center-cropping important image content
+- apply the same deterministic preprocessing during validation/inference
+
+Training augmentations should be conservative and appropriate to this task:
+
+- horizontal flips are allowed
+- small translations/crops
+- small rotations
+- brightness/contrast variation
+- mild blur/noise if useful
+- NO vertical flipping
+- avoid augmentations that alter the physical concept of upright vs lateral
+
+Keep preprocessing configurable.
+
+============================================================
+PROJECT STRUCTURE
+============================================================
+
+Create something close to:
+
+ml/
+    pyproject.toml
+    README.md
+
+    configs/
+        default.yaml
+
+    src/
+        rabbitcam_ml/
+            __init__.py
+            __main__.py
+            config.py
+            labels.py
+
+            capture.py
+            dataset.py
+            transforms.py
+            splits.py
+
+            models/
+                __init__.py
+                factory.py
+                checkpoint.py
+
+            train.py
+            evaluate.py
+            inference.py
+            metrics.py
+
+            camera/
+                __init__.py
+                mjpeg.py
+
+    tests/
+        ...
+
+    data/
+        .gitkeep
+
+    artifacts/
+        .gitkeep
+
+`data/` and generated training artifacts/checkpoints must be gitignored except for placeholder files.
+
+Do not pollute the firmware source tree with Python ML code.
+
+Use Python 3.11+.
+
+Use a normal `pyproject.toml`.
+
+Core dependencies may include:
+
+- torch
+- torchvision
+- timm
+- Pillow
+- numpy
+- opencv-python-headless
+- PyYAML
+- scikit-learn
+- tensorboard
+
+Keep dependencies reasonable.
+
+============================================================
+DATA CAPTURE
+============================================================
+
+Implement a CLI for collecting labeled data directly from RabbitCam's MJPEG stream.
+
+RabbitCam currently exposes an MJPEG stream in the form:
+
+    http://<camera-ip>:81/stream
+
+Example desired command:
+
+    rabbitcam-ml capture \
+        --stream-url http://192.168.100.22:81/stream \
+        --label lateral \
+        --lighting ir \
+        --session lateral-ir-001 \
+        --interval 1.0 \
+        --duration 60
+
+Support the labels:
+
+    standing
+    lateral
+    unknown
+
+Support lighting metadata such as:
+
+    visible
+    ir
+    mixed
+    unknown
+
+Capture must:
+
+- save the original JPEG/frame whenever practical
+- avoid unnecessarily recompressing already-JPEG camera frames
+- use timestamped filenames
+- create a session metadata file
+- record label, session ID, lighting mode, timestamps and stream URL metadata
+- shut down cleanly on Ctrl+C
+- tolerate temporary dropped frames
+- produce clear logs
+
+A session is IMPORTANT.
+
+Frames from the same capture session are highly correlated and MUST NOT randomly leak between training and validation/test datasets.
+
+Design all dataset splitting around capture SESSION groups, not individual frames.
+
+The user will deliberately collect separate sessions with the rabbit:
+
+- standing in different enclosure positions
+- lateral in different enclosure positions
+- under visible light
+- under IR illumination
+
+Unknown data should include examples such as:
+
+- empty enclosure
+- rabbit partly outside frame
+- rabbit obscured
+- ambiguous transition frames
+- human hands/body obscuring the rabbit
+- very bad frames
+
+Do not require dangerously long staged capture sessions. Short independent sessions are preferable.
+
+============================================================
+DATASET PREPARATION / SPLITTING
+============================================================
+
+Implement deterministic dataset preparation.
+
+Never randomly split individual adjacent frames.
+
+Split by `session_id`.
+
+Default target split can be approximately:
+
+    train      70%
+    validation 15%
+    test       15%
+
+but preserve whole sessions.
+
+Try to keep classes represented in every split when enough independent sessions exist.
+
+If there are too few sessions to produce a valid split, fail or warn clearly rather than silently creating a misleading validation set.
+
+Save the generated split/manifest so repeated training runs use exactly the same samples.
+
+Allow the user to regenerate the split explicitly with a seed.
+
+Detect missing/corrupt images gracefully.
+
+Optionally identify exact duplicate frames, but do not overengineer perceptual deduplication for v1.
+
+============================================================
+TRAINING
+============================================================
+
+Implement a robust headless training CLI, for example:
+
+    rabbitcam-ml train --config configs/default.yaml
+
+Use transfer learning from the pretrained MobileNetV4 backbone.
+
+Support:
+
+- CPU
+- CUDA when available
+- automatic device selection
+- mixed precision on CUDA
+- configurable workers/batch size
+- deterministic seed
+- AdamW or another sensible optimizer
+- configurable LR / weight decay
+- scheduler
+- configurable number of epochs
+- class weighting based on training distribution if enabled
+- optional short classifier-head-only warmup before full fine-tuning
+
+All important hyperparameters must live in YAML config rather than being hidden throughout the source.
+
+============================================================
+CHECKPOINTING -- VERY IMPORTANT
+============================================================
+
+Training may take a long time on the user's hardware.
+
+Checkpointing and resume behavior must therefore be first-class functionality.
+
+Each run should have a stable run directory such as:
+
+    ml/artifacts/runs/mobilenetv4-v1/
+
+Inside it:
+
+    config.yaml
+    checkpoints/
+        last.pt
+        best.pt
+        periodic-....pt
+    tensorboard/
+    metrics.csv
+    summary.json
+    ...
+
+Checkpoint contents must include enough state for a REAL continuation:
+
+- model state_dict
+- optimizer state
+- scheduler state
+- AMP GradScaler state when relevant
+- epoch
+- global step
+- best metric so far
+- class mapping
+- model name
+- preprocessing configuration
+- complete training configuration
+- random/RNG states where practical
+
+Use atomic checkpoint writes: write a temporary file then replace the destination.
+
+Always save:
+
+    last.pt
+
+at least at the end of every epoch.
+
+Also support configurable step-based checkpointing so a very long epoch does not risk losing all progress.
+
+For example:
+
+    checkpoint_every_steps: 250
+
+Keep a configurable number of periodic checkpoints.
+
+Save:
+
+    best.pt
+
+using validation macro-F1 as the default selection metric.
+
+Also track lateral recall prominently.
+
+On SIGINT / KeyboardInterrupt, make a best effort to save a final resumable checkpoint before exiting.
+
+AUTO-RESUME IS REQUIRED:
+
+If the configured run directory contains a compatible `last.pt`, a normal `train` invocation must resume automatically.
+
+Example:
+
+    rabbitcam-ml train --config configs/default.yaml
+
+should continue an interrupted run without needing a separate `--resume` argument.
+
+Provide:
+
+    --fresh
+
+or equivalent to explicitly start over.
+
+If a checkpoint is incompatible because classes/model/preprocessing/config are materially different, fail with a clear explanation rather than loading it blindly.
+
+============================================================
+TRAINING OBSERVABILITY
+============================================================
+
+Training itself must be fully headless, but observable.
+
+Write TensorBoard events for at least:
+
+- train loss
+- validation loss
+- accuracy
+- balanced accuracy
+- macro F1
+- per-class precision
+- per-class recall
+- per-class F1
+- especially lateral recall
+- learning rate
+
+Log a validation confusion matrix to TensorBoard each epoch or at sensible intervals.
+
+Also write machine-readable / inspectable files:
+
+    metrics.csv
+    summary.json
+
+Print useful epoch summaries to stdout.
+
+README should document how to inspect training with TensorBoard, e.g.:
+
+    tensorboard --logdir ml/artifacts/runs
+
+Do not require a notebook or GUI for training.
+
+============================================================
+INFERENCE / CHECKPOINT INSPECTION
+============================================================
+
+This is a major requirement.
+
+The user must be able to take ANY saved checkpoint, give it one image, and immediately see the classification scores.
+
+Provide something equivalent to:
+
+    rabbitcam-ml predict \
+        --checkpoint artifacts/runs/mobilenetv4-v1/checkpoints/last.pt \
+        --image rabbit.jpg
+
+Human-readable output should resemble:
+
+    prediction: lateral
+    confidence: 0.932
+
+    standing: 0.041
+    lateral:  0.932
+    unknown:  0.027
+
+Also support machine-readable JSON:
+
+    rabbitcam-ml predict ... --json
+
+The JSON should include at least:
+
+    label
+    raw_label
+    confidence
+    probabilities:
+        standing
+        lateral
+        unknown
+    checkpoint
+    inference_time_ms
+
+Support prediction directly from RabbitCam as a convenience:
+
+    rabbitcam-ml predict \
+        --checkpoint ... \
+        --stream-url http://192.168.100.22:81/stream
+
+It only needs to grab one usable frame for this mode.
+
+============================================================
+UNKNOWN / CONFIDENCE HANDLING
+============================================================
+
+`unknown` is a real trained class.
+
+Additionally, inference should support an optional confidence threshold.
+
+For example, if the highest model score is below 0.55, the resolved public label may be `unknown` even if the raw argmax was `standing`.
+
+Return BOTH:
+
+    raw_label
+    label
+
+so this behavior is transparent.
+
+Make the threshold configurable and store the default inference preprocessing/threshold metadata with the checkpoint.
+
+Do not hide or discard the raw three-class probability scores.
+
+============================================================
+STABLE PYTHON INFERENCE API
+============================================================
+
+The separate homeserver agent must be able to import this package without invoking a CLI.
+
+Provide a stable API similar to:
+
+    from rabbitcam_ml.inference import Predictor
+
+    predictor = Predictor(
+        checkpoint_path="...",
+        device="auto",
+    )
+
+    prediction = predictor.predict_pil(image)
+
+The result should be a typed dataclass or similar structure containing:
+
+    label
+    raw_label
+    confidence
+    probabilities
+    inference_time_ms
+
+Also support at least one convenient raw format such as:
+
+    predict_bytes(...)
+    predict_numpy(...)
+
+The Predictor must:
+
+- load model/preprocessing/class mapping from the checkpoint
+- call model.eval()
+- use torch.inference_mode()
+- avoid reloading the model for every image
+- be safe for repeated inference by a long-running process
+
+Do NOT put temporal logic in Predictor.
+
+A server receiving repeated predictions should be able to decide separately whether lateral posture has persisted for N seconds.
+
+============================================================
+EVALUATION
+============================================================
+
+Implement:
+
+    rabbitcam-ml evaluate --checkpoint ... --split test
+
+Report:
+
+- confusion matrix
+- overall accuracy
+- balanced accuracy
+- macro F1
+- precision/recall/F1 for every class
+- lateral recall
+- counts for each class
+
+Save JSON results and, where useful, a confusion-matrix image.
+
+Allow evaluation of `best.pt`, `last.pt`, or any periodic checkpoint.
+
+============================================================
+CHECKPOINT INSPECTION
+============================================================
+
+Provide something equivalent to:
+
+    rabbitcam-ml inspect-checkpoint path/to/checkpoint.pt
+
+It should show:
+
+- model architecture
+- class mapping
+- epoch/global step
+- best validation metric
+- training config
+- preprocessing config
+- checkpoint timestamp/version
+- any stored validation summary
+
+============================================================
+TESTING
+============================================================
+
+This codebase must be testable.
+
+Use pytest.
+
+Tests must run on CPU and must not require:
+
+- a GPU
+- a RabbitCam device
+- internet access
+- downloading pretrained weights
+
+Use generated fixture images / synthetic datasets where needed.
+
+At minimum test:
+
+- label validation
+- session-based splitting with NO session leakage
+- image preprocessing output shape
+- checkpoint save/load
+- auto-resume logic
+- prediction result schema
+- confidence-to-unknown fallback behavior
+- metrics calculations
+- MJPEG/frame handling using local test data or mocked streams
+- a minimal training smoke test using a tiny/mocked model so CI doesn't download MobileNet weights
+
+Add a single command documented in README for running all tests.
+
+============================================================
+REPRODUCIBILITY / SAFETY AGAINST DATA LEAKAGE
+============================================================
+
+Store:
+
+- random seed
+- exact session split
+- class-to-index mapping
+- preprocessing configuration
+- model identifier
+
+with each training run/checkpoint.
+
+Do not ever split frames from one session between train and validation/test.
+
+This requirement is more important than obtaining a superficially high validation score.
+
+============================================================
+GIT / GENERATED FILES
+============================================================
+
+Do not commit:
+
+- collected camera frames
+- model weights
+- checkpoints
+- TensorBoard event files
+- temporary exports
+- large generated artifacts
+
+Update .gitignore appropriately without removing existing entries.
+
+Do commit:
+
+- source code
+- tests
+- configs
+- README
+- small metadata examples if useful
+
+============================================================
+DOCUMENTATION
+============================================================
+
+Write an actually useful `ml/README.md`.
+
+Document the complete normal workflow:
+
+1. install
+2. capture several standing sessions
+3. capture several lateral sessions
+4. capture unknown sessions
+5. include both visible-light and IR sessions
+6. create/inspect dataset split
+7. start training
+8. observe it through TensorBoard
+9. stop training and demonstrate automatic resume
+10. evaluate a checkpoint
+11. classify one local image
+12. classify one live RabbitCam frame
+13. import Predictor from another Python process
+
+Provide concrete command examples.
+
+Document expected data directories and artifact directories.
+
+Explain that this model predicts posture only and that the future server is responsible for temporal state / alerts.
+
+============================================================
+IMPLEMENTATION QUALITY
+============================================================
+
+Prefer straightforward maintainable Python over clever abstractions.
+
+Use type hints.
+
+Separate:
+
+- capture
+- data loading
+- preprocessing
+- model creation
+- training
+- checkpoints
+- metrics
+- inference
+
+Do not duplicate transform logic between training and inference.
+
+Training/inference preprocessing must come from the same shared code/config.
+
+Avoid global mutable state.
+
+Use clear errors.
+
+Do not silently ignore corrupted checkpoints or invalid labels.
+
+============================================================
+ACCEPTANCE CRITERIA
+============================================================
+
+Before finishing, demonstrate locally (using synthetic/test data where real camera data is unavailable) that:
+
+- pytest passes
+- CLI help works
+- dataset/session splitting cannot leak one session across splits
+- a tiny training smoke test creates a checkpoint
+- rerunning training auto-resumes that checkpoint
+- prediction from that checkpoint returns standing/lateral/unknown scores
+- `--json` output is valid JSON
+- checkpoint inspection works
+- TensorBoard logs and metrics.csv are generated
+- Predictor can be imported and called independently of the CLI
+
+Do not claim real RabbitCam classification accuracy without real labeled data.
+
+When implementation is complete, summarize:
+- files created
+- important architectural decisions
+- commands I should run first
+- any assumptions or TODOs

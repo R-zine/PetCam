@@ -1,0 +1,66 @@
+paths:
+  data_dir: data
+  split_manifest: data/splits.json
+  run_dir: artifacts/runs/mobilenetv4-v1
+
+model:
+  name: mobilenetv4_conv_small.e3600_r256_in1k
+  pretrained: true
+  num_classes: 3
+
+preprocessing:
+  input_size: [256, 256]
+  grayscale: true
+  letterbox: true
+  pad_value: 0
+  interpolation: bilinear
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+augmentation:
+  horizontal_flip_probability: 0.5
+  max_rotation_degrees: 5.0
+  max_translation_fraction: 0.04
+  brightness: 0.12
+  contrast: 0.12
+  blur_probability: 0.08
+  noise_probability: 0.08
+  noise_std: 0.015
+
+data:
+  train_fraction: 0.70
+  validation_fraction: 0.15
+  test_fraction: 0.15
+  split_seed: 1337
+  verify_images: true
+  detect_exact_duplicates: false
+
+training:
+  seed: 1337
+  deterministic: true
+  device: auto
+  epochs: 30
+  batch_size: 32
+  workers: 4
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  optimizer: adamw
+  scheduler: cosine
+  minimum_learning_rate: 0.000001
+  mixed_precision: true
+  class_weights: true
+  head_warmup_epochs: 1
+
+checkpoint:
+  monitor: macro_f1
+  mode: max
+  checkpoint_every_steps: 250
+  keep_periodic: 3
+
+inference:
+  confidence_threshold: 0.55
+
+capture:
+  reconnect_delay_seconds: 1.0
+  request_timeout_seconds: 10.0
+
